@@ -22,3 +22,13 @@ Project scaffold for a FastAPI service with a dbt warehouse layer.
 - Outputs:
   - JSON: `data/raw/telegram_messages/YYYY-MM-DD/<channel>.json`
   - Images: `data/raw/images/<channel>/<message_id>.jpg`
+
+## Task 2: Load + Transform
+- Start Postgres (local or remote). For local Docker:
+   - `docker compose up -d postgres`
+- Load raw JSON to Postgres:
+   - `python src/load_raw.py`
+- dbt (from `medical_warehouse/`):
+   - `dbt debug`
+   - `dbt run --select staging marts`
+   - `dbt test`
