@@ -32,6 +32,9 @@ htmlcov/
 logs/
 target/
 
+# Telethon session files
+*.session
+
 # VS Code
 .vscode/
 
