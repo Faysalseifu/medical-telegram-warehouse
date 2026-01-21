@@ -32,3 +32,19 @@ Project scaffold for a FastAPI service with a dbt warehouse layer.
    - `dbt debug`
    - `dbt run --select staging marts`
    - `dbt test`
+
+## Task 3: YOLO Enrichment
+- Run detections to generate CSV:
+   - `python src/yolo_detect.py`
+- Optional: load detections into Postgres:
+   - Handled by Dagster asset `yolo_csv_to_postgres` or via manual SQL COPY.
+
+## Task 5: Orchestration (Dagster)
+- Install Dagster deps:
+   - `pip install -r requirements.txt`
+- Ensure dbt manifest exists:
+   - `cd medical_warehouse && dbt compile`
+- Launch Dagster UI:
+   - `dagster dev -f dagster_project/definitions.py`
+- In the UI, materialize the full pipeline job `daily_full_pipeline` or trigger individual assets:
+   - `raw_telegram_data` → `raw_postgres_load` → `yolo_image_detections` → `yolo_csv_to_postgres` → `dbt_transforms`
