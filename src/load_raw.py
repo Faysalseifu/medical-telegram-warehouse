@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Iterable
 
 import psycopg
-from psycopg.extras import execute_values
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -88,8 +87,7 @@ def load_json_to_postgres() -> None:
         with conn.cursor() as cur:
             for batch in yield_records(RAW_BASE):
                 try:
-                    execute_values(
-                        cur,
+                    cur.executemany(
                         """
                         INSERT INTO raw.telegram_messages (
                             channel_name,
@@ -100,7 +98,7 @@ def load_json_to_postgres() -> None:
                             image_path,
                             views,
                             forwards
-                        ) VALUES %s
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (channel_name, message_id) DO NOTHING
                         """,
                         batch,
