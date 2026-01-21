@@ -8,3 +8,6 @@ dbt-postgres==1.8.2
 pytest==8.3.4
 telethon==1.36.0
 python-dotenv==1.0.1
+ultralytics==8.3.0
+opencv-python==4.10.0.84
+pandas
