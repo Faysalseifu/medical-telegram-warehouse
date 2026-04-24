@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from dagster import AssetExecutionContext
 from dagster_dbt import dbt_assets, DbtCliResource
@@ -10,7 +11,7 @@ MANIFEST_PATH = Path(__file__).parent.parent.parent / "medical_warehouse" / "tar
 
 
 @dbt_assets(manifest=MANIFEST_PATH)
-def dbt_transforms(context: AssetExecutionContext, dbt: DbtCliResource):
+def dbt_transforms(context: AssetExecutionContext, dbt: DbtCliResource) -> Any:
     """Run full dbt build, exposing dbt models as assets."""
     # Stream dbt logs/results into Dagster
     yield from dbt.cli(["build"], context=context).stream()

@@ -1,44 +1,47 @@
 import asyncio
 import json
 import logging
-import os
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from dotenv import load_dotenv
 from telethon import TelegramClient
 from telethon.errors import ChannelPrivateError, FloodWaitError
 from telethon.tl.functions.messages import GetHistoryRequest
 from telethon.tl.types import Photo
 
-# Load environment variables
-load_dotenv()
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from app_config import ensure_directory, get_config, raw_image_dir, raw_message_dir, SCRAPER_LOG_FILE  # noqa: E402
+
+SETTINGS = get_config().scraper
 
 # Ensure directories exist
-Path("logs").mkdir(parents=True, exist_ok=True)
+ensure_directory(SCRAPER_LOG_FILE.parent)
 
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler("logs/scraper.log"),
+        logging.FileHandler(SCRAPER_LOG_FILE),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
-API_ID = int(os.getenv("API_ID", "0"))
-API_HASH = os.getenv("API_HASH", "")
-PHONE_NUMBER = os.getenv("PHONE_NUMBER", "")
-SESSION_NAME = "telegram_scraper"
-
-
-async def scrape_channel(client: TelegramClient, channel_username: str, days_back: int = 7, max_messages: int = 5000):
+async def scrape_channel(
+    client: TelegramClient,
+    channel_username: str,
+    days_back: int = SETTINGS.days_back,
+    max_messages: int = SETTINGS.max_messages,
+) -> list[dict[str, object]]:
     """
     Scrape messages and images from a single channel.
     """
-    messages: list[dict] = []
+    messages: list[dict[str, object]] = []
     try:
         entity = await client.get_entity(channel_username)
         logger.info(f"Accessed channel: {channel_username}")
@@ -50,7 +53,7 @@ async def scrape_channel(client: TelegramClient, channel_username: str, days_bac
         return messages
 
     offset_id = 0
-    limit = 100  # Batch size to avoid floods
+    limit = SETTINGS.batch_size
     # Telethon message dates are timezone-aware (UTC); compare using aware datetime
     min_date = datetime.now(timezone.utc) - timedelta(days=days_back)
 
@@ -70,7 +73,7 @@ async def scrape_channel(client: TelegramClient, channel_username: str, days_bac
             if not history.messages:
                 break
 
-            batch_messages: list[dict] = []
+            batch_messages: list[dict[str, object]] = []
             for msg in history.messages:
                 if msg.date < min_date:
                     logger.info(f"Reached min_date for {channel_username}")
@@ -90,8 +93,7 @@ async def scrape_channel(client: TelegramClient, channel_username: str, days_bac
                 # Download image if present
                 # Telethon exposes photos via msg.photo; download using the message
                 if getattr(msg, "photo", None):
-                    img_dir = Path(f"data/raw/images/{channel_username}")
-                    img_dir.mkdir(parents=True, exist_ok=True)
+                    img_dir = ensure_directory(raw_image_dir(channel_username))
                     img_path = img_dir / f"{msg.id}.jpg"
 
                     try:
@@ -111,40 +113,35 @@ async def scrape_channel(client: TelegramClient, channel_username: str, days_bac
                 logger.info(f"Reached max_messages for {channel_username}")
                 break
 
-            await asyncio.sleep(1.5)  # Avoid rate limits
+            await asyncio.sleep(SETTINGS.request_delay_seconds)  # Avoid rate limits
 
         except FloodWaitError as e:
             logger.warning(f"Flood wait: sleeping for {e.seconds} seconds")
-            await asyncio.sleep(e.seconds + 5)
+            await asyncio.sleep(e.seconds + SETTINGS.flood_wait_buffer_seconds)
         except Exception as e:
             logger.error(f"Error during scraping {channel_username}: {e}")
-            await asyncio.sleep(10)
+            await asyncio.sleep(SETTINGS.retry_delay_seconds)
 
     return messages
 
 
-async def main():
-    channels = [
-        "CheMed123",
-        "lobelia4cosmetics",
-        "Thequorachannel",
-    ]
+async def main() -> None:
+    channels = SETTINGS.channels
 
-    async with TelegramClient(SESSION_NAME, API_ID, API_HASH) as client:
+    async with TelegramClient(SETTINGS.session_name, SETTINGS.api_id, SETTINGS.api_hash) as client:
         # First-run login
         if not await client.is_user_authorized():
-            await client.send_code_request(PHONE_NUMBER)
+            await client.send_code_request(SETTINGS.phone_number)
             code = input("Enter the code: ")
-            await client.sign_in(PHONE_NUMBER, code)
+            await client.sign_in(SETTINGS.phone_number, code)
 
         for channel in channels:
             logger.info(f"Starting scrape for {channel}")
-            messages = await scrape_channel(client, channel, days_back=5, max_messages=1000)
+            messages = await scrape_channel(client, channel)
 
             if messages:
                 today_str = datetime.now().strftime("%Y-%m-%d")
-                raw_dir = Path(f"data/raw/telegram_messages/{today_str}")
-                raw_dir.mkdir(parents=True, exist_ok=True)
+                raw_dir = ensure_directory(raw_message_dir(today_str))
                 json_path = raw_dir / f"{channel}.json"
 
                 with open(json_path, "w", encoding="utf-8") as f:

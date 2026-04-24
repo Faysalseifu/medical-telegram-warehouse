@@ -2,30 +2,30 @@
 from datetime import datetime
 import logging
 from pathlib import Path
-from typing import Iterable, List, Set
+import sys
+from typing import Iterable
 
 import pandas as pd
 from ultralytics import YOLO
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from app_config import ensure_directory, get_config  # noqa: E402
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-MODEL = "yolov8n.pt"
-IMG_DIR = Path("data/raw/images")
-OUTPUT_CSV = Path("data/enriched/yolo_detections.csv")
-OUTPUT_CSV.parent.mkdir(parents=True, exist_ok=True)
-
-PERSON_CLASS = 0
-BOTTLE_CLASS = 39
-CUP_CLASS = 41
-VASE_CLASS = 86
-RELEVANT_CLASSES: Set[int] = {PERSON_CLASS, BOTTLE_CLASS, CUP_CLASS, VASE_CLASS}
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+SETTINGS = get_config().yolo
+ensure_directory(SETTINGS.output_csv.parent)
 
 
-def categorize(detected_classes: Set[int]) -> str:
-    has_person = PERSON_CLASS in detected_classes
-    has_container = any(c in detected_classes for c in (BOTTLE_CLASS, CUP_CLASS, VASE_CLASS))
+def categorize(detected_classes: set[int]) -> str:
+    has_person = SETTINGS.person_class in detected_classes
+    has_container = any(
+        c in detected_classes for c in (SETTINGS.bottle_class, SETTINGS.cup_class, SETTINGS.vase_class)
+    )
 
     if has_person and has_container:
         return "promotional"
@@ -37,20 +37,20 @@ def categorize(detected_classes: Set[int]) -> str:
 
 
 def iter_images() -> Iterable[Path]:
-    for img_path in IMG_DIR.rglob("*"):
-        if img_path.is_file() and img_path.suffix.lower() in IMAGE_EXTENSIONS:
+    for img_path in SETTINGS.image_dir.rglob("*"):
+        if img_path.is_file() and img_path.suffix.lower() in SETTINGS.image_extensions:
             yield img_path
 
 
 def run_detection() -> None:
-    if not IMG_DIR.exists():
-        logger.warning("Image directory %s does not exist", IMG_DIR)
+    if not SETTINGS.image_dir.exists():
+        logger.warning("Image directory %s does not exist", SETTINGS.image_dir)
         return
 
-    model = YOLO(MODEL)
-    logger.info("Loaded %s", MODEL)
+    model = YOLO(SETTINGS.model_name)
+    logger.info("Loaded %s", SETTINGS.model_name)
 
-    results_list: List[dict] = []
+    results_list: list[dict[str, object]] = []
 
     for img_path in iter_images():
         try:
@@ -74,7 +74,7 @@ def run_detection() -> None:
             detections = []
             max_conf = 0.0
             for cls_id, conf in zip(cls_ids, confs):
-                if cls_id in RELEVANT_CLASSES:
+                if cls_id in SETTINGS.relevant_classes:
                     class_name = results[0].names[int(cls_id)]
                     detections.append(f"{class_name}:{conf:.2f}")
                     max_conf = max(max_conf, float(conf))
@@ -98,8 +98,8 @@ def run_detection() -> None:
 
     if results_list:
         df = pd.DataFrame(results_list)
-        df.to_csv(OUTPUT_CSV, index=False)
-        logger.info("Saved %d results to %s", len(results_list), OUTPUT_CSV)
+        df.to_csv(SETTINGS.output_csv, index=False)
+        logger.info("Saved %d results to %s", len(results_list), SETTINGS.output_csv)
     else:
         logger.warning("No images processed")
 

@@ -1,17 +1,17 @@
-from pathlib import Path
 import os
+from pathlib import Path
 
 import pandas as pd
 from dagster import asset, AssetExecutionContext, AssetIn
-from dotenv import load_dotenv
 from sqlalchemy import create_engine
+
+from app_config import get_config, normalize_sqlalchemy_url
 
 
 @asset(ins={"yolo_image_detections": AssetIn()})
 def yolo_csv_to_postgres(context: AssetExecutionContext) -> str:
     """Load YOLO detections CSV into Postgres table raw.yolo_detections."""
-    load_dotenv()
-    database_url = os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:password@localhost:5432/postgres")
+    database_url = normalize_sqlalchemy_url(get_config().database.sqlalchemy_url)
     engine = create_engine(database_url, future=True)
 
     csv_path = Path("data/enriched/yolo_detections.csv")
@@ -22,7 +22,7 @@ def yolo_csv_to_postgres(context: AssetExecutionContext) -> str:
 
     # Ensure table exists with expected schema
     with engine.begin() as conn:
-        conn.execute(
+        conn.exec_driver_sql(
             """
             CREATE SCHEMA IF NOT EXISTS raw;
             CREATE TABLE IF NOT EXISTS raw.yolo_detections (

@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
@@ -10,13 +10,13 @@ from ..schemas import MessagePreview
 router = APIRouter(prefix="/search", tags=["search"])
 
 
-@router.get("/messages", response_model=List[MessagePreview])
+@router.get("/messages", response_model=list[MessagePreview])
 def search_messages(
     query: str = Query(..., min_length=2, description="Keyword to search in message_text"),
     channel: Optional[str] = Query(None, description="Optional channel_name filter"),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-):
+) -> list[MessagePreview]:
     sql = text(
         """
         SELECT m.message_id,
