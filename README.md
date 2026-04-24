@@ -4,6 +4,8 @@ Project scaffold for a FastAPI service with a dbt warehouse layer.
 
 ## Quickstart
 1. Create a `.env` file with your secrets (DB URL, API keys). Do not commit it.
+   - For the Neon database, set `DATABASE_URL=postgresql://neondb_owner:npg_Q5NtksMJCTA7@ep-late-silence-ah63hd3s-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require`
+   - Also set the matching dbt variables: `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_PORT`, `DB_NAME`, `DB_SSLMODE`
 2. Build and run the API:
    - `docker-compose up --build`
 3. Run tests locally:
@@ -24,8 +26,7 @@ Project scaffold for a FastAPI service with a dbt warehouse layer.
   - Images: `data/raw/images/<channel>/<message_id>.jpg`
 
 ## Task 2: Load + Transform
-- Start Postgres (local or remote). For local Docker:
-   - `docker compose up -d postgres`
+- Use the Neon database from `.env` for the app, loaders, and dbt.
 - Load raw JSON to Postgres:
    - `python src/load_raw.py`
 - dbt (from `medical_warehouse/`):
