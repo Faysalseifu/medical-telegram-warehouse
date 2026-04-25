@@ -13,4 +13,4 @@ opencv-python==4.10.0.84
 pandas
 dagster==1.8.13
 dagster-webserver==1.8.13
-dagster-dbt==0.23.1
+dagster-dbt==0.24.13
