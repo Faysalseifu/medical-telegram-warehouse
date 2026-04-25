@@ -8,7 +8,11 @@ Project scaffold for a FastAPI service with a dbt warehouse layer.
    - Also set the matching dbt variables: `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_PORT`, `DB_NAME`, `DB_SSLMODE`
 2. Build and run the API:
    - `docker-compose up --build`
-3. Run tests locally:
+3. Run the dashboard locally against the API:
+   - `pip install -r requirements.txt`
+   - `set API_BASE_URL=http://localhost:8000`
+   - `streamlit run streamlit_app.py`
+4. Run tests locally:
    - `pip install -r requirements.txt`
    - `pytest`
 
@@ -45,7 +49,18 @@ Project scaffold for a FastAPI service with a dbt warehouse layer.
    - `pip install -r requirements.txt`
 - Ensure dbt manifest exists:
    - `cd medical_warehouse && dbt compile`
+  - Use a Python 3.11 runtime for dbt 1.8; the current Python 3.14 venv in this workspace cannot start the dbt CLI because of protobuf/upb incompatibility.
 - Launch Dagster UI:
    - `dagster dev -f dagster_project/definitions.py`
 - In the UI, materialize the full pipeline job `daily_full_pipeline` or trigger individual assets:
    - `raw_telegram_data` → `raw_postgres_load` → `yolo_image_detections` → `yolo_csv_to_postgres` → `dbt_transforms`
+
+## Task 6: Interactive Dashboard
+- Start the FastAPI app and then open the Streamlit front end:
+  - `streamlit run streamlit_app.py`
+- The dashboard is organized into four batch-aware views:
+  - Overview
+  - Model predictions
+  - Business impact
+  - Drill-down
+- Freshness is reported from the latest warehouse refresh timestamp surfaced by the API, so the UI reflects the last successful pipeline run instead of simulating live streaming.
