@@ -7,6 +7,8 @@ from .assets.yolo_load_asset import yolo_csv_to_postgres
 from .assets.dbt_assets import dbt_transforms
 from .resources import dbt
 
+DAILY_PIPELINE_CRON = "0 2 * * *"
+
 all_assets = [
     raw_telegram_data,
     raw_postgres_load,
@@ -26,7 +28,7 @@ full_pipeline_job = AssetSelection.assets(
 
 full_pipeline_schedule = ScheduleDefinition(
     job=full_pipeline_job,
-    cron_schedule="0 2 * * *",  # 2 AM daily
+    cron_schedule=DAILY_PIPELINE_CRON,
     name="daily_pipeline_schedule",
 )
 

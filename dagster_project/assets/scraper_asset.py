@@ -1,23 +1,16 @@
-from pathlib import Path
 import subprocess
 
+from pathlib import Path
+
 from dagster import asset, AssetExecutionContext
+
+from ..utils import run_python_script
 
 
 @asset
 def raw_telegram_data(context: AssetExecutionContext) -> Path:
     """Run the Telegram scraper to fetch latest messages and images."""
-    context.log.info("Starting Telegram scrape via src/scraper.py ...")
-
-    result = subprocess.run([
-        "python",
-        "src/scraper.py",
-    ], capture_output=True, text=True, check=False)
-
-    if result.stdout:
-        context.log.info(result.stdout)
-    if result.stderr:
-        context.log.warning(result.stderr)
+    result = run_python_script(context, Path("src/scraper.py"), "Telegram scrape")
     if result.returncode != 0:
         raise RuntimeError(f"Scraper failed with code {result.returncode}")
 

@@ -20,7 +20,7 @@ def top_products(
     limit: int = Query(10, ge=1, le=50),
     min_count: int = Query(3, ge=1),
     db: Session = Depends(get_db),
-):
+) -> list[TopProduct]:
     query = text(
         """
         WITH exploded AS (
@@ -56,7 +56,7 @@ def top_products(
 def visual_content(
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
-):
+) -> list[VisualContentReport]:
     query = text(
         """
         WITH msg AS (
@@ -101,7 +101,7 @@ def visual_content(
 
 
 @router.get("/message-stats", response_model=MessageStats)
-def message_stats(db: Session = Depends(get_db)):
+def message_stats(db: Session = Depends(get_db)) -> MessageStats:
     query = text(
         """
         WITH totals AS (
@@ -140,7 +140,7 @@ def message_stats(db: Session = Depends(get_db)):
 def category_performance(
     channel: Optional[str] = Query(None, description="Filter by channel_name"),
     db: Session = Depends(get_db),
-):
+) -> list[CategoryPerformance]:
     query = text(
         """
         SELECT fid.image_category,

@@ -8,5 +8,6 @@ medical_warehouse:
       password: {{ env_var('DB_PASSWORD', 'password') }}
       port: {{ env_var('DB_PORT', '5432') | int }}
       dbname: {{ env_var('DB_NAME', 'postgres') }}
+      sslmode: {{ env_var('DB_SSLMODE', 'require') }}
       schema: public
       threads: 4

@@ -1,20 +1,22 @@
 import json
 import logging
-import os
+import sys
 from pathlib import Path
 from typing import Iterable
 
 import psycopg
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from app_config import RAW_TELEGRAM_MESSAGES_DIR, get_config  # noqa: E402
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/medical_warehouse",
-)
-
-RAW_BASE = Path("data/raw/telegram_messages")
+DATABASE_URL = get_config().database.raw_url
+RAW_BASE = RAW_TELEGRAM_MESSAGES_DIR
 
 
 def ensure_schema_and_table(conn: psycopg.Connection) -> None:
@@ -40,7 +42,7 @@ def ensure_schema_and_table(conn: psycopg.Connection) -> None:
         conn.commit()
 
 
-def yield_records(base_dir: Path) -> Iterable[list]:
+def yield_records(base_dir: Path) -> Iterable[list[tuple[object, ...]]]:
     """Yield batches of records from JSON files under data/raw/telegram_messages/YYYY-MM-DD."""
     if not base_dir.exists():
         logger.warning("Raw data directory does not exist: %s", base_dir)
@@ -61,7 +63,7 @@ def yield_records(base_dir: Path) -> Iterable[list]:
             if not messages:
                 continue
 
-            batch = []
+            batch: list[tuple[object, ...]] = []
             for msg in messages:
                 batch.append(
                     (

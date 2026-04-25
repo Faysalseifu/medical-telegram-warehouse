@@ -9,7 +9,7 @@ router = APIRouter(prefix="/channels", tags=["channels"])
 
 
 @router.get("/{channel_name}/activity", response_model=ChannelActivitySummary)
-def channel_activity(channel_name: str, db: Session = Depends(get_db)):
+def channel_activity(channel_name: str, db: Session = Depends(get_db)) -> ChannelActivitySummary:
     sql = text(
         """
         SELECT channel_name,
