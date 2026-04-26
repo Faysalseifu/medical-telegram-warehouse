@@ -42,7 +42,7 @@ def raw_image_dir(channel_name: str) -> Path:
 
 
 def _load_env() -> None:
-    load_dotenv()
+    load_dotenv(override=True)
 
 
 def _env_int(name: str, default: int) -> int:

@@ -4,7 +4,7 @@ Project scaffold for a FastAPI service with a dbt warehouse layer.
 
 ## Quickstart
 1. Create a `.env` file with your secrets (DB URL, API keys). Do not commit it.
-   - For the Neon database, set `DATABASE_URL=postgresql://neondb_owner:npg_Q5NtksMJCTA7@ep-late-silence-ah63hd3s-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require`
+   - For the Neon database, set `DATABASE_URL=postgresql://neondb_owner:npg_Q5NtksMJCTA7@ep-late-silence-ah63hd3s-pooler.c-3.us-east-1.aws.neon.tech/neondb?sslmode=require`
    - Also set the matching dbt variables: `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_PORT`, `DB_NAME`, `DB_SSLMODE`
 2. Build and run the API:
    - `docker-compose up --build`
