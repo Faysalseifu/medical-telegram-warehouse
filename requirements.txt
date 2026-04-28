@@ -14,3 +14,9 @@ pandas
 dagster==1.8.13
 dagster-webserver==1.8.13
 dagster-dbt==0.24.13
+
+# Optional explainability + dashboard deps (not yet available on Python 3.14)
+scikit-learn==1.5.2; python_version < "3.13"
+shap==0.46.0; python_version < "3.13"
+matplotlib==3.9.2; python_version < "3.13"
+streamlit==1.38.0; python_version < "3.13"

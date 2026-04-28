@@ -1,4 +1,5 @@
 # Medical Telegram Warehouse
+[![CI](https://github.com/username/project/actions/workflows/ci.yml/badge.svg)](https://github.com/username/project/actions/workflows/ci.yml)
 A data pipeline and analytics API for medical Telegram channels. The project scrapes channel messages, loads them into a warehouse, enriches image content with YOLO, and serves business-facing insights through a FastAPI service.
 
 ## Business Problem
@@ -46,6 +47,22 @@ medical-telegram-warehouse/
 Dashboard: http://127.0.0.1:8501/ when the local dashboard app is running.
 
 API docs: http://127.0.0.1:8000/docs
+
+### Explainability dashboard
+This repo includes a small Streamlit app at `dashboard/app.py` that provides:
+
+- Global importance: which YOLO-derived features matter most
+- Local explanation: why a specific image row was categorized
+- Concerning patterns: simple checks for suspicious distributions
+
+Run it locally:
+```bash
+streamlit run dashboard/app.py
+```
+
+Note on SHAP: SHAP + scikit-learn are installed only on Python < 3.13 via `requirements.txt` markers.
+CI runs on Python 3.12 (so SHAP plots are exercised there). On Python 3.14, the dashboard falls back
+to rule-based explanations derived from YOLO detections.
 
 ## Technical Details
    - Data: Telegram messages are scraped into daily JSON files, with associated images stored under `data/raw/images/`, then loaded into Postgres and modeled with dbt.
