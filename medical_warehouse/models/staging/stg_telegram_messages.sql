@@ -1,7 +1,19 @@
-{{ config(materialized='view') }}
+{{
+    config(
+        materialized='incremental',
+        unique_key='message_id',
+        on_schema_change='sync_all_columns'
+    )
+}}
 
 WITH source AS (
     SELECT * FROM {{ source('raw', 'telegram_messages') }}
+    {% if is_incremental() %}
+    WHERE loaded_at > (
+        SELECT COALESCE(MAX(loaded_at), '1900-01-01'::timestamptz)
+        FROM {{ this }}
+    )
+    {% endif %}
 )
 
 SELECT
