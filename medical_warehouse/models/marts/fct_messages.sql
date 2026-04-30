@@ -1,6 +1,23 @@
-{{ config(materialized='table') }}
+{{
+    config(
+        materialized='incremental',
+        unique_key='message_id',
+        on_schema_change='sync_all_columns'
+    )
+}}
 
+WITH messages AS (
+    SELECT *
+    FROM {{ ref('stg_telegram_messages') }}
+    {% if is_incremental() %}
+    WHERE message_id > (
+        SELECT COALESCE(MAX(message_id), 0)
+        FROM {{ this }}
+    )
+    {% endif %}
+)
 SELECT
+    {{ dbt_utils.generate_surrogate_key(['m.message_id']) }} AS message_key,
     m.message_id,
     c.channel_key,
     d.date_key,
@@ -12,6 +29,6 @@ SELECT
     m.forwards,
     m.has_media,
     m.image_path
-FROM {{ ref('stg_telegram_messages') }} AS m
+FROM messages AS m
 JOIN {{ ref('dim_channels') }} AS c ON m.channel_name = c.channel_name
 JOIN {{ ref('dim_dates') }}    AS d ON DATE(m.message_date) = d.full_date

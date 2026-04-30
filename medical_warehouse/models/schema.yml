@@ -1,22 +1,161 @@
 version: 2
 
 models:
-  - name: fct_messages
+  - name: stg_telegram_messages
+    description: Cleaned Telegram messages from the raw source table.
     columns:
       - name: message_id
+        description: Unique Telegram message identifier.
         tests:
+          - not_null
           - unique
+      - name: channel_name
+        description: Source Telegram channel name.
+        tests:
+          - not_null
+      - name: message_date
+        description: Timestamp when the message was posted.
+        tests:
+          - not_null
+      - name: message_text
+        description: Raw message text content.
+      - name: message_length
+        description: Length of the message text in characters.
+      - name: has_media
+        description: Whether the message has attached media.
+      - name: image_path
+        description: Path to the image file when media exists.
+      - name: views
+        description: Number of views recorded for the message.
+      - name: forwards
+        description: Number of times the message was forwarded.
+      - name: is_empty_message
+        description: Flag indicating the message text is empty or null.
+      - name: loaded_at
+        description: Ingestion timestamp for the raw record.
+
+  - name: dim_channels
+    description: Channel dimension with derived channel type and activity metadata.
+    columns:
+      - name: channel_key
+        description: Surrogate key for the channel.
+        tests:
+          - not_null
+          - unique
+      - name: channel_name
+        description: Telegram channel name.
+        tests:
+          - not_null
+      - name: channel_type
+        description: Classified channel type based on naming patterns.
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Cosmetics', 'Pharmaceutical', 'Medical']
+      - name: first_post_date
+        description: First observed message date for the channel.
+      - name: last_post_date
+        description: Most recent message date for the channel.
+      - name: total_posts
+        description: Total number of messages observed for the channel.
+
+  - name: fct_messages
+    description: Message fact table at the message grain.
+    columns:
+      - name: message_key
+        description: Surrogate key for the message fact.
+        tests:
+          - not_null
+          - unique
+      - name: message_id
+        description: Original Telegram message identifier.
+        tests:
           - not_null
       - name: channel_key
+        description: Foreign key to the channel dimension.
         tests:
           - not_null
+          - relationships:
+              to: ref('dim_channels')
+              field: channel_key
       - name: date_key
+        description: Foreign key to the date dimension.
         tests:
           - not_null
+          - relationships:
+              to: ref('dim_dates')
+              field: date_key
+      - name: channel_name
+        description: Source channel name for the message.
+      - name: message_date
+        description: Timestamp when the message was posted.
+      - name: message_text
+        description: Message text content.
+      - name: message_length
+        description: Length of the message text in characters.
+      - name: views
+        description: Number of views recorded for the message.
+      - name: forwards
+        description: Number of times the message was forwarded.
+      - name: has_media
+        description: Whether the message has attached media.
+      - name: image_path
+        description: Path to the image file when media exists.
+
+  - name: fct_image_detections
+    description: Image detections fact table at the message and detection grain.
+    columns:
+      - name: image_detection_key
+        description: Surrogate key for the image detection record.
+        tests:
+          - not_null
+          - unique
+      - name: message_id
+        description: Original Telegram message identifier.
+        tests:
+          - not_null
+      - name: channel_key
+        description: Foreign key to the channel dimension.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_channels')
+              field: channel_key
+      - name: date_key
+        description: Foreign key to the date dimension.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_dates')
+              field: date_key
+      - name: image_category
+        description: Detected image category label.
+      - name: confidence_score
+        description: Maximum confidence score for the detection.
+      - name: detections
+        description: Detection metadata payload for the image.
+      - name: image_path
+        description: Path to the detected image file.
 
   - name: dim_dates
+    description: Date dimension derived from message timestamps.
     columns:
       - name: date_key
+        description: Surrogate key in YYYYMMDD format.
         tests:
           - unique
           - not_null
+      - name: full_date
+        description: Calendar date represented by the key.
+      - name: year
+        description: Calendar year.
+      - name: month
+        description: Calendar month number.
+      - name: month_name
+        description: Calendar month name.
+      - name: day
+        description: Day of month.
+      - name: day_of_week
+        description: Day of week number where Sunday is 0.
+      - name: is_weekend
+        description: Whether the date falls on a weekend.
