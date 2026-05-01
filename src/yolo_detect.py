@@ -61,7 +61,7 @@ def run_detection() -> None:
 
         if not results or not results[0].boxes:
             category = "other"
-            detections: List[str] = []
+            detections: list[str] = []
             max_conf = 0.0
         else:
             boxes = results[0].boxes
