@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 DATABASE_URL = get_config().database.raw_url
 RAW_BASE = RAW_TELEGRAM_MESSAGES_DIR
+LOAD_STATE_PATH = RAW_BASE / "_load_state.json"
 
 
 def ensure_schema_and_table(conn: psycopg.Connection) -> None:
@@ -42,7 +43,31 @@ def ensure_schema_and_table(conn: psycopg.Connection) -> None:
         conn.commit()
 
 
-def yield_records(base_dir: Path) -> Iterable[list[tuple[object, ...]]]:
+def _load_state(state_path: Path) -> dict[str, dict[str, int]]:
+    if not state_path.exists():
+        return {}
+    try:
+        with state_path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to read load state %s: %s", state_path, exc)
+        return {}
+
+
+def _save_state(state_path: Path, state: dict[str, dict[str, int]]) -> None:
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = state_path.with_suffix(state_path.suffix + ".tmp")
+    with tmp_path.open("w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2, sort_keys=True)
+    tmp_path.replace(state_path)
+
+
+def _file_signature(path: Path) -> dict[str, int]:
+    stat = path.stat()
+    return {"mtime": int(stat.st_mtime), "size": int(stat.st_size)}
+
+
+def yield_records(base_dir: Path, state: dict[str, dict[str, int]]) -> Iterable[tuple[Path, list[tuple[object, ...]]]]:
     """Yield batches of records from JSON files under data/raw/telegram_messages/YYYY-MM-DD."""
     if not base_dir.exists():
         logger.warning("Raw data directory does not exist: %s", base_dir)
@@ -52,6 +77,11 @@ def yield_records(base_dir: Path) -> Iterable[list[tuple[object, ...]]]:
         if not date_folder.is_dir():
             continue
         for json_file in sorted(date_folder.glob("*.json")):
+            rel_path = str(json_file.relative_to(base_dir))
+            signature = _file_signature(json_file)
+            if state.get(rel_path) == signature:
+                continue
+
             logger.info("Processing %s", json_file)
             try:
                 with json_file.open("r", encoding="utf-8") as f:
@@ -79,15 +109,16 @@ def yield_records(base_dir: Path) -> Iterable[list[tuple[object, ...]]]:
                 )
 
             if batch:
-                yield batch
+                yield json_file, batch
 
 
 def load_json_to_postgres() -> None:
     inserted = 0
+    state = _load_state(LOAD_STATE_PATH)
     with psycopg.connect(DATABASE_URL) as conn:
         ensure_schema_and_table(conn)
         with conn.cursor() as cur:
-            for batch in yield_records(RAW_BASE):
+            for json_file, batch in yield_records(RAW_BASE, state):
                 try:
                     cur.executemany(
                         """
@@ -105,9 +136,12 @@ def load_json_to_postgres() -> None:
                         """,
                         batch,
                     )
-                    inserted += len(batch)
+                    inserted += max(cur.rowcount, 0)
                     conn.commit()
-                    logger.info("Inserted %s rows (total %s)", len(batch), inserted)
+                    rel_path = str(json_file.relative_to(RAW_BASE))
+                    state[rel_path] = _file_signature(json_file)
+                    _save_state(LOAD_STATE_PATH, state)
+                    logger.info("Inserted %s rows (total %s)", cur.rowcount, inserted)
                 except Exception as exc:  # noqa: BLE001
                     conn.rollback()
                     logger.error("Insert failed, rolled back: %s", exc)
