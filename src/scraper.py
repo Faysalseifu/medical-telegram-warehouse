@@ -37,6 +37,7 @@ async def scrape_channel(
     channel_username: str,
     days_back: int = SETTINGS.days_back,
     max_messages: int = SETTINGS.max_messages,
+    since_id: int | None = None,
 ) -> list[dict[str, object]]:
     """
     Scrape messages and images from a single channel.
@@ -55,7 +56,7 @@ async def scrape_channel(
     offset_id = 0
     limit = SETTINGS.batch_size
     # Telethon message dates are timezone-aware (UTC); compare using aware datetime
-    min_date = datetime.now(timezone.utc) - timedelta(days=days_back)
+    min_date = datetime.now(timezone.utc) - timedelta(days=days_back) if days_back > 0 else None
 
     while True:
         try:
@@ -75,7 +76,10 @@ async def scrape_channel(
 
             batch_messages: list[dict[str, object]] = []
             for msg in history.messages:
-                if msg.date < min_date:
+                if since_id is not None and msg.id <= since_id:
+                    logger.info("Reached since_id for %s", channel_username)
+                    return messages
+                if min_date and msg.date < min_date:
                     logger.info(f"Reached min_date for {channel_username}")
                     return messages
 
@@ -125,8 +129,29 @@ async def scrape_channel(
     return messages
 
 
+def _load_scrape_state(state_path: Path) -> dict[str, int]:
+    if not state_path.exists():
+        return {}
+    try:
+        with state_path.open("r", encoding="utf-8") as f:
+            raw = json.load(f)
+        return {key: int(value) for key, value in raw.items()}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to read scrape state %s: %s", state_path, exc)
+        return {}
+
+
+def _save_scrape_state(state_path: Path, state: dict[str, int]) -> None:
+    ensure_directory(state_path.parent)
+    tmp_path = state_path.with_suffix(state_path.suffix + ".tmp")
+    with tmp_path.open("w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2, sort_keys=True)
+    tmp_path.replace(state_path)
+
+
 async def main() -> None:
     channels = SETTINGS.channels
+    state = _load_scrape_state(SETTINGS.state_path)
 
     async with TelegramClient(SETTINGS.session_name, SETTINGS.api_id, SETTINGS.api_hash) as client:
         # First-run login
@@ -137,19 +162,25 @@ async def main() -> None:
 
         for channel in channels:
             logger.info(f"Starting scrape for {channel}")
-            messages = await scrape_channel(client, channel)
+            since_id = state.get(channel)
+            messages = await scrape_channel(client, channel, since_id=since_id)
 
             if messages:
                 today_str = datetime.now().strftime("%Y-%m-%d")
                 raw_dir = ensure_directory(raw_message_dir(today_str))
-                json_path = raw_dir / f"{channel}.json"
+                timestamp = datetime.now().strftime("%H%M%S")
+                json_path = raw_dir / f"{channel}_{timestamp}.json"
 
                 with open(json_path, "w", encoding="utf-8") as f:
                     json.dump(messages, f, ensure_ascii=False, indent=2)
 
+                max_id = max(int(msg["message_id"]) for msg in messages if msg.get("message_id") is not None)
+                state[channel] = max(max_id, state.get(channel, 0))
                 logger.info(f"Saved {len(messages)} messages to {json_path}")
             else:
                 logger.warning(f"No messages scraped for {channel}")
+
+        _save_scrape_state(SETTINGS.state_path, state)
 
 
 if __name__ == "__main__":

@@ -55,8 +55,33 @@ def _env_int(name: str, default: int) -> int:
         return default
 
 
+def _env_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
+
+
 def _env_str(name: str, default: str) -> str:
     return os.getenv(name, default)
+
+
+def _env_path(name: str, default: Path) -> Path:
+    value = os.getenv(name)
+    if not value:
+        return default
+    return Path(value)
+
+
+def _env_csv(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    value = os.getenv(name)
+    if not value:
+        return default
+    items = [item.strip() for item in value.split(",") if item.strip()]
+    return tuple(items) if items else default
 
 
 def normalize_sqlalchemy_url(url: str) -> str:
@@ -82,6 +107,7 @@ class ScraperConfig:
     request_delay_seconds: float = 1.5
     flood_wait_buffer_seconds: int = 5
     retry_delay_seconds: int = 10
+    state_path: Path = RAW_TELEGRAM_MESSAGES_DIR / "_scrape_state.json"
 
 
 @dataclass(frozen=True)
@@ -121,6 +147,15 @@ def get_config() -> AppConfig:
             api_id=_env_int("API_ID", 0),
             api_hash=_env_str("API_HASH", ""),
             phone_number=_env_str("PHONE_NUMBER", ""),
+            session_name=_env_str("SESSION_NAME", "telegram_scraper"),
+            channels=_env_csv("CHANNELS", DEFAULT_CHANNELS),
+            days_back=_env_int("DAYS_BACK", 5),
+            max_messages=_env_int("MAX_MESSAGES", 1000),
+            batch_size=_env_int("BATCH_SIZE", 100),
+            request_delay_seconds=_env_float("REQUEST_DELAY_SECONDS", 1.5),
+            flood_wait_buffer_seconds=_env_int("FLOOD_WAIT_BUFFER_SECONDS", 5),
+            retry_delay_seconds=_env_int("RETRY_DELAY_SECONDS", 10),
+            state_path=_env_path("SCRAPER_STATE_PATH", RAW_TELEGRAM_MESSAGES_DIR / "_scrape_state.json"),
         ),
         database=DatabaseConfig(
             raw_url=_env_str("DATABASE_URL", DEFAULT_DATABASE_URL),
