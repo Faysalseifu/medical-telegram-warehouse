@@ -8,6 +8,7 @@ from ..database import get_db
 from ..schemas import (
     CategoryPerformance,
     MessageStats,
+    PromoVsProductDisplay,
     TopProduct,
     VisualContentReport,
 )
@@ -161,6 +162,39 @@ def category_performance(
             image_category=row.image_category,
             avg_views=float(row.avg_views) if row.avg_views is not None else 0.0,
             message_count=row.message_count,
+        )
+        for row in rows
+    ]
+
+
+@router.get("/promo-vs-product-display", response_model=List[PromoVsProductDisplay])
+def promo_vs_product_display(
+    channel: Optional[str] = Query(None, description="Filter by channel_name"),
+    db: Session = Depends(get_db),
+) -> list[PromoVsProductDisplay]:
+    query = text(
+        """
+        SELECT fid.image_category,
+               COUNT(*) AS message_count,
+               AVG(m.views) AS avg_views,
+               AVG(m.forwards) AS avg_forwards
+        FROM fct_image_detections fid
+        JOIN fct_messages m
+          ON m.message_id = fid.message_id AND m.channel_name = fid.channel_name
+        WHERE fid.image_category IN ('promotional', 'product_display')
+          AND (:channel IS NULL OR m.channel_name = :channel)
+        GROUP BY fid.image_category
+        ORDER BY avg_views DESC NULLS LAST, message_count DESC
+        """
+    )
+
+    rows = db.execute(query, {"channel": channel}).fetchall()
+    return [
+        PromoVsProductDisplay(
+            image_category=row.image_category,
+            message_count=row.message_count,
+            avg_views=float(row.avg_views) if row.avg_views is not None else 0.0,
+            avg_forwards=float(row.avg_forwards) if row.avg_forwards is not None else 0.0,
         )
         for row in rows
     ]
