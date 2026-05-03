@@ -1,6 +1,6 @@
 import asyncio
 import json
-import logging
+import structlog
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -22,15 +22,7 @@ SETTINGS = get_config().scraper
 ensure_directory(SCRAPER_LOG_FILE.parent)
 
 # Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler(SCRAPER_LOG_FILE),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 async def scrape_channel(
     client: TelegramClient,
@@ -45,12 +37,12 @@ async def scrape_channel(
     messages: list[dict[str, object]] = []
     try:
         entity = await client.get_entity(channel_username)
-        logger.info(f"Accessed channel: {channel_username}")
+        logger.info("Accessed channel", channel=channel_username)
     except ChannelPrivateError:
-        logger.error(f"Channel {channel_username} is private or invalid")
+        logger.error("Channel private or invalid", channel=channel_username)
         return messages
     except Exception as e:
-        logger.error(f"Error accessing {channel_username}: {e}")
+        logger.error("Error accessing channel", channel=channel_username, error=str(e))
         return messages
 
     offset_id = 0
@@ -77,10 +69,10 @@ async def scrape_channel(
             batch_messages: list[dict[str, object]] = []
             for msg in history.messages:
                 if since_id is not None and msg.id <= since_id:
-                    logger.info("Reached since_id for %s", channel_username)
+                    logger.info("Reached since_id", channel=channel_username)
                     return messages
                 if min_date and msg.date < min_date:
-                    logger.info(f"Reached min_date for {channel_username}")
+                    logger.info("Reached min_date", channel=channel_username)
                     return messages
 
                 msg_data = {
@@ -103,27 +95,27 @@ async def scrape_channel(
                     try:
                         await client.download_media(msg, str(img_path))
                         msg_data["image_path"] = str(img_path)
-                        logger.info(f"Downloaded image: {img_path}")
+                        logger.info("Downloaded image", image_path=str(img_path))
                     except Exception as e:
-                        logger.error(f"Failed to download image for msg {msg.id}: {e}")
+                        logger.error("Failed to download image", msg_id=msg.id, error=str(e))
 
                 batch_messages.append(msg_data)
 
             messages.extend(batch_messages)
             offset_id = history.messages[-1].id
-            logger.info(f"Scraped {len(batch_messages)} messages from {channel_username}. Total: {len(messages)}")
+            logger.info("Scraped messages batch", channel=channel_username, batch_size=len(batch_messages), total=len(messages))
 
             if len(messages) >= max_messages:
-                logger.info(f"Reached max_messages for {channel_username}")
+                logger.info("Reached max_messages", channel=channel_username)
                 break
 
             await asyncio.sleep(SETTINGS.request_delay_seconds)  # Avoid rate limits
 
         except FloodWaitError as e:
-            logger.warning(f"Flood wait: sleeping for {e.seconds} seconds")
+            logger.warning("Flood wait sleeping", seconds=e.seconds)
             await asyncio.sleep(e.seconds + SETTINGS.flood_wait_buffer_seconds)
         except Exception as e:
-            logger.error(f"Error during scraping {channel_username}: {e}")
+            logger.error("Error during scraping", channel=channel_username, error=str(e))
             await asyncio.sleep(SETTINGS.retry_delay_seconds)
 
     return messages
@@ -137,7 +129,7 @@ def _load_scrape_state(state_path: Path) -> dict[str, int]:
             raw = json.load(f)
         return {key: int(value) for key, value in raw.items()}
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Failed to read scrape state %s: %s", state_path, exc)
+        logger.warning("Failed to read scrape state", state_path=str(state_path), error=str(exc))
         return {}
 
 
@@ -161,7 +153,7 @@ async def main() -> None:
             await client.sign_in(SETTINGS.phone_number, code)
 
         for channel in channels:
-            logger.info(f"Starting scrape for {channel}")
+            logger.info("Starting scrape", channel=channel)
             since_id = state.get(channel)
             messages = await scrape_channel(client, channel, since_id=since_id)
 
@@ -176,9 +168,9 @@ async def main() -> None:
 
                 max_id = max(int(msg["message_id"]) for msg in messages if msg.get("message_id") is not None)
                 state[channel] = max(max_id, state.get(channel, 0))
-                logger.info(f"Saved {len(messages)} messages to {json_path}")
+                logger.info("Saved messages", count=len(messages), path=str(json_path))
             else:
-                logger.warning(f"No messages scraped for {channel}")
+                logger.warning("No messages scraped", channel=channel)
 
         _save_scrape_state(SETTINGS.state_path, state)
 
