@@ -1,7 +1,10 @@
+import structlog
 from fastapi import FastAPI
 
 from .routers import channels, reports, search
 from .schemas import HealthResponse
+
+logger = structlog.get_logger(__name__)
 
 app = FastAPI(
     title="Medical Telegram Analytical API",
@@ -16,4 +19,5 @@ app.include_router(search.router)
 
 @app.get("/health", tags=["health"], response_model=HealthResponse)
 def health() -> HealthResponse:
+    logger.info("Health check requested")
     return HealthResponse(status="ok")

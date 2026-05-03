@@ -1,5 +1,5 @@
 import json
-import logging
+import structlog
 import sys
 from pathlib import Path
 from typing import Iterable
@@ -12,8 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from app_config import RAW_TELEGRAM_MESSAGES_DIR, get_config  # noqa: E402
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 DATABASE_URL = get_config().database.raw_url
 RAW_BASE = RAW_TELEGRAM_MESSAGES_DIR
@@ -50,7 +49,7 @@ def _load_state(state_path: Path) -> dict[str, dict[str, int]]:
         with state_path.open("r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Failed to read load state %s: %s", state_path, exc)
+        logger.warning("Failed to read load state", state_path=str(state_path), error=str(exc))
         return {}
 
 
@@ -70,7 +69,7 @@ def _file_signature(path: Path) -> dict[str, int]:
 def yield_records(base_dir: Path, state: dict[str, dict[str, int]]) -> Iterable[tuple[Path, list[tuple[object, ...]]]]:
     """Yield batches of records from JSON files under data/raw/telegram_messages/YYYY-MM-DD."""
     if not base_dir.exists():
-        logger.warning("Raw data directory does not exist: %s", base_dir)
+        logger.warning("Raw data directory does not exist", base_dir=str(base_dir))
         return
 
     for date_folder in sorted(base_dir.iterdir()):
@@ -82,12 +81,12 @@ def yield_records(base_dir: Path, state: dict[str, dict[str, int]]) -> Iterable[
             if state.get(rel_path) == signature:
                 continue
 
-            logger.info("Processing %s", json_file)
+            logger.info("Processing", json_file=str(json_file))
             try:
                 with json_file.open("r", encoding="utf-8") as f:
                     messages = json.load(f)
             except Exception as exc:  # noqa: BLE001
-                logger.error("Failed to read %s: %s", json_file, exc)
+                logger.error("Failed to read", json_file=str(json_file), error=str(exc))
                 continue
 
             if not messages:
@@ -141,12 +140,12 @@ def load_json_to_postgres() -> None:
                     rel_path = str(json_file.relative_to(RAW_BASE))
                     state[rel_path] = _file_signature(json_file)
                     _save_state(LOAD_STATE_PATH, state)
-                    logger.info("Inserted %s rows (total %s)", cur.rowcount, inserted)
+                    logger.info("Inserted rows", cur=cur.rowcount, total=inserted)
                 except Exception as exc:  # noqa: BLE001
                     conn.rollback()
-                    logger.error("Insert failed, rolled back: %s", exc)
+                    logger.error("Insert failed, rolled back", error=str(exc))
 
-    logger.info("Finished load. Total inserted: %s", inserted)
+    logger.info("Finished load", total=inserted)
 
 
 if __name__ == "__main__":
