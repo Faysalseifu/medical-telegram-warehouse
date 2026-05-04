@@ -81,10 +81,23 @@ flowchart LR
 - `dagster_project/` Dagster assets and resources
 - `data/` Raw and enriched artifacts
 - `docs/` Data dictionary and diagrams
+- `.github/workflows/` GitHub Actions CI/CD configuration
+
+## Recent Enhancements
+- **Orchestration:** Cleaned up and organized Dagster pipeline with proper dependencies between scraping, loading, YOLO enrichment, and dbt models using `DbtCliResource`.
+- **Observability:** Added structured logging across the pipeline and API using `structlog`.
+- **Testing & CI/CD:** Added unit tests for scraper utility functions and FastAPI endpoints using `pytest`. Set up a GitHub Actions workflow to run tests automatically on pushes to the `main` branch.
 
 ## Future Improvements
 - Add incremental loads for raw and staging layers
 - Track schema changes with dbt exposures and docs site
 - Add topic modeling for message text
 - Enrich detections with more domain-specific classes
-- Add CI for dbt + API tests
+
+## About & Contact
+
+**Disclaimer:** This project was originally created for educational purposes as part of the 10 Academy program, and has been continuously enhanced with additional features and improvements since then.
+
+- **Author:** Faysal Seifu
+- **Email:** Faysiseifu@gmail.com
+- **LinkedIn:** [Faysal Seifu](https://www.linkedin.com/in/faysal-seifu-038443297/)
